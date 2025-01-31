@@ -17,11 +17,24 @@ week4_data <- subset(df_interpolated, week == "04")
 
 week4_data$WeekDay <- weekdays(week4_data$DateTime)
 week4_data$Hour <- format(week4_data$DateTime, "%H:%M:%S")
+week4_data$day_type <- ifelse(week4_data$WeekDay %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+week4_data$time_period <- ifelse(
+  (week4_data$Hour >= "07:30:00" & week4_data$Hour <= "17:00:00"),
+  "Day",
+  ifelse(
+    (week4_data$Hour >= "18:00:00" | week4_data$Hour <= "24:00:00"),
+    "Night",
+    "Other"
+  )
+)
 
-day_start <- "07:30:00"
-day_end <- "17:00:00"
-night_start <- "18:00:00"
-night_end <- "24:00:00"
+week4_weekday <- subset(week4_data, day_type == "Weekday")
+week4_weekend <- subset(week4_data, day_type == "Weekend")
+
+weekday_day_data <- subset(week4_weekday, time_period == "Day")
+weekday_night_data <- subset(week4_weekday, time_period == "Night")
+weekend_day_data <- subset(week4_weekend, time_period == "Day")
+weekend_night_data <- subset(week4_weekend, time_period == "Night")
 
 calculate_average_intensity <- function(data) {
   avg_data <- aggregate(Global_intensity ~ Hour, data, mean)
@@ -30,21 +43,11 @@ calculate_average_intensity <- function(data) {
   return(avg_data)
 }
 
-weekday_day_data <- week4_data[week4_data$WeekDay %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday") & 
-                                 week4_data$Hour >= day_start & week4_data$Hour <= day_end, ]
-weekday_night_data <- week4_data[week4_data$WeekDay %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday") & 
-                                   (week4_data$Hour >= night_start | week4_data$Hour <= night_end), ]
-weekend_day_data <- week4_data[week4_data$WeekDay %in% c("Saturday", "Sunday") & 
-                                 week4_data$Hour >= day_start & week4_data$Hour <= day_end, ]
-weekend_night_data <- week4_data[week4_data$WeekDay %in% c("Saturday", "Sunday") & 
-                                   (week4_data$Hour >= night_start | week4_data$Hour <= night_end), ]
-
 weekday_day_avg <- calculate_average_intensity(weekday_day_data)
 weekday_night_avg <- calculate_average_intensity(weekday_night_data)
 weekend_day_avg <- calculate_average_intensity(weekend_day_data)
 weekend_night_avg <- calculate_average_intensity(weekend_night_data)
 
-# Fit models
 fit_linear_wd_day <- lm(Global_intensity ~ minutes, data=weekday_day_avg)
 fit_linear_wd_night <- lm(Global_intensity ~ minutes, data=weekday_night_avg)
 fit_linear_we_day <- lm(Global_intensity ~ minutes, data=weekend_day_avg)
@@ -55,7 +58,7 @@ fit_poly_wd_night <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=week
 fit_poly_we_day <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekend_day_avg)
 fit_poly_we_night <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekend_night_avg)
 
-png("increased_height_plot.png", width = 800, height = 1200)
+png("part3.png", width = 800, height = 1200)
 par(mfrow=c(2,1), mar=c(5, 4, 4, 2) + 0.5)
 
 plot(weekday_day_avg$minutes, weekday_day_avg$Global_intensity, 
