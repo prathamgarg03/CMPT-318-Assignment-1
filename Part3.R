@@ -1,5 +1,3 @@
-# Read and prepare the data
-
 df <- read.csv("Group_Assignment_Dataset.txt", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
 interpolate_na <- function(x) {
@@ -22,102 +20,82 @@ week4_data$Hour <- format(week4_data$DateTime, "%H:%M:%S")
 
 day_start <- "07:30:00"
 day_end <- "17:00:00"
-night_start <- "22:00:00"
-night_end <- "04:00:00"
+night_start <- "18:00:00"
+night_end <- "24:00:00"
 
-weekdays_data <- week4_data[week4_data$WeekDay %in% 
-                              c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), ]
-weekend_data <- week4_data[week4_data$WeekDay %in% 
-                             c("Saturday", "Sunday"), ]
-
-get_time_window_data <- function(data, start_time, end_time) {
-  if(start_time < end_time) {
-    return(data[data$Hour >= start_time & data$Hour <= end_time, ])
-  } else {
-    return(data[data$Hour >= start_time | data$Hour <= end_time, ])
-  }
+calculate_average_intensity <- function(data) {
+  avg_data <- aggregate(Global_intensity ~ Hour, data, mean)
+  avg_data$minutes <- as.numeric(substr(avg_data$Hour, 1, 2)) * 60 + 
+    as.numeric(substr(avg_data$Hour, 4, 5))
+  return(avg_data)
 }
 
-weekday_day <- get_time_window_data(weekdays_data, day_start, day_end)
-weekday_night <- get_time_window_data(weekdays_data, night_start, night_end)
-weekend_day <- get_time_window_data(weekend_data, day_start, day_end)
-weekend_night <- get_time_window_data(weekend_data, night_start, night_end)
+weekday_day_data <- week4_data[week4_data$WeekDay %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday") & 
+                                 week4_data$Hour >= day_start & week4_data$Hour <= day_end, ]
+weekday_night_data <- week4_data[week4_data$WeekDay %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday") & 
+                                   (week4_data$Hour >= night_start | week4_data$Hour <= night_end), ]
+weekend_day_data <- week4_data[week4_data$WeekDay %in% c("Saturday", "Sunday") & 
+                                 week4_data$Hour >= day_start & week4_data$Hour <= day_end, ]
+weekend_night_data <- week4_data[week4_data$WeekDay %in% c("Saturday", "Sunday") & 
+                                   (week4_data$Hour >= night_start | week4_data$Hour <= night_end), ]
 
-prepare_regression_data <- function(data) {
-  # Convert time to minutes since midnight
-  time_mins <- as.numeric(substr(data$Hour, 1, 2)) * 60 + 
-    as.numeric(substr(data$Hour, 4, 5))
-  return(data.frame(x=time_mins, y=data$Global_intensity))
-}
+weekday_day_avg <- calculate_average_intensity(weekday_day_data)
+weekday_night_avg <- calculate_average_intensity(weekday_night_data)
+weekend_day_avg <- calculate_average_intensity(weekend_day_data)
+weekend_night_avg <- calculate_average_intensity(weekend_night_data)
 
-weekday_day_reg <- prepare_regression_data(weekday_day)
-weekday_night_reg <- prepare_regression_data(weekday_night)
-weekend_day_reg <- prepare_regression_data(weekend_day)
-weekend_night_reg <- prepare_regression_data(weekend_night)
+# Fit models
+fit_linear_wd_day <- lm(Global_intensity ~ minutes, data=weekday_day_avg)
+fit_linear_wd_night <- lm(Global_intensity ~ minutes, data=weekday_night_avg)
+fit_linear_we_day <- lm(Global_intensity ~ minutes, data=weekend_day_avg)
+fit_linear_we_night <- lm(Global_intensity ~ minutes, data=weekend_night_avg)
 
-fit_models <- function(data) {
-  linear <- lm(y ~ x, data=data)
-  poly <- lm(y ~ poly(x, 3, raw=TRUE), data=data)
-  return(list(linear=linear, poly=poly))
-}
+fit_poly_wd_day <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekday_day_avg)
+fit_poly_wd_night <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekday_night_avg)
+fit_poly_we_day <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekend_day_avg)
+fit_poly_we_night <- lm(Global_intensity ~ poly(minutes, 3, raw=TRUE), data=weekend_night_avg)
 
-weekday_day_fits <- fit_models(weekday_day_reg)
-weekday_night_fits <- fit_models(weekday_night_reg)
-weekend_day_fits <- fit_models(weekend_day_reg)
-weekend_night_fits <- fit_models(weekend_night_reg)
+png("increased_height_plot.png", width = 800, height = 1200)
+par(mfrow=c(2,1), mar=c(5, 4, 4, 2) + 0.5)
 
-par(mfrow=c(2,1))
+plot(weekday_day_avg$minutes, weekday_day_avg$Global_intensity, 
+     type="n", col="blue", pch=16,
+     main="Linear Regression - Global Intensity (Week 4)",
+     xlab="Time (minutes after midnight)", 
+     ylab="Average Global Intensity")
 
-plot(weekday_day_reg$x, weekday_day_reg$y, col="blue", pch=".", 
-     main="Global Intensity - Day Hours (Week 4)", 
-     xlab="Time (minutes after midnight)", ylab="Global Intensity")
-points(weekend_day_reg$x, weekend_day_reg$y, col="red", pch=".")
-
-lines(sort(weekday_day_reg$x), predict(weekday_day_fits$linear, 
-                                       newdata=data.frame(x=sort(weekday_day_reg$x))), col="blue", lwd=2)
-lines(sort(weekday_day_reg$x), predict(weekday_day_fits$poly, 
-                                       newdata=data.frame(x=sort(weekday_day_reg$x))), col="blue", lwd=2, lty=2)
-lines(sort(weekend_day_reg$x), predict(weekend_day_fits$linear, 
-                                       newdata=data.frame(x=sort(weekend_day_reg$x))), col="red", lwd=2)
-lines(sort(weekend_day_reg$x), predict(weekend_day_fits$poly, 
-                                       newdata=data.frame(x=sort(weekend_day_reg$x))), col="red", lwd=2, lty=2)
+lines(sort(weekday_day_avg$minutes), predict(fit_linear_wd_day, 
+                                             newdata=data.frame(minutes=sort(weekday_day_avg$minutes))), col="blue", lwd=2)
+lines(sort(weekday_night_avg$minutes), predict(fit_linear_wd_night, 
+                                               newdata=data.frame(minutes=sort(weekday_night_avg$minutes))), col="red", lwd=2)
+lines(sort(weekend_day_avg$minutes), predict(fit_linear_we_day, 
+                                             newdata=data.frame(minutes=sort(weekend_day_avg$minutes))), col="green", lwd=2)
+lines(sort(weekend_night_avg$minutes), predict(fit_linear_we_night, 
+                                               newdata=data.frame(minutes=sort(weekend_night_avg$minutes))), col="purple", lwd=2)
 
 legend("topright", 
-       legend=c("Weekday Data", "Weekend Data", "Weekday Linear", "Weekday Polynomial", 
-                "Weekend Linear", "Weekend Polynomial"),
-       col=c("blue", "red", "blue", "blue", "red", "red"),
-       pch=c(".", ".", NA, NA, NA, NA),
-       lty=c(NA, NA, 1, 2, 1, 2),
-       lwd=c(NA, NA, 2, 2, 2, 2))
+       legend=c("Weekday Day", "Weekday Night", "Weekend Day", "Weekend Night"),
+       col=c("blue", "red", "green", "purple"),
+       lwd=2)
 
-plot(weekday_night_reg$x, weekday_night_reg$y, col="blue", pch=".", 
-     main="Global Intensity - Night Hours (Week 4)", 
-     xlab="Time (minutes after midnight)", ylab="Global Intensity")
-points(weekend_night_reg$x, weekend_night_reg$y, col="red", pch=".")
+plot(weekday_day_avg$minutes, weekday_day_avg$Global_intensity, 
+     type="n", col="blue", pch=16,
+     main="Polynomial Regression - Global Intensity (Week 4)",
+     xlab="Time (minutes after midnight)", 
+     ylab="Average Global Intensity")
 
-lines(sort(weekday_night_reg$x), predict(weekday_night_fits$linear, 
-                                         newdata=data.frame(x=sort(weekday_night_reg$x))), col="blue", lwd=2)
-lines(sort(weekday_night_reg$x), predict(weekday_night_fits$poly, 
-                                         newdata=data.frame(x=sort(weekday_night_reg$x))), col="blue", lwd=2, lty=2)
-lines(sort(weekend_night_reg$x), predict(weekend_night_fits$linear, 
-                                         newdata=data.frame(x=sort(weekend_night_reg$x))), col="red", lwd=2)
-lines(sort(weekend_night_reg$x), predict(weekend_night_fits$poly, 
-                                         newdata=data.frame(x=sort(weekend_night_reg$x))), col="red", lwd=2, lty=2)
+lines(sort(weekday_day_avg$minutes), predict(fit_poly_wd_day, 
+                                             newdata=data.frame(minutes=sort(weekday_day_avg$minutes))), col="blue", lwd=2)
+lines(sort(weekday_night_avg$minutes), predict(fit_poly_wd_night, 
+                                               newdata=data.frame(minutes=sort(weekday_night_avg$minutes))), col="red", lwd=2)
+lines(sort(weekend_day_avg$minutes), predict(fit_poly_we_day, 
+                                             newdata=data.frame(minutes=sort(weekend_day_avg$minutes))), col="green", lwd=2)
+lines(sort(weekend_night_avg$minutes), predict(fit_poly_we_night, 
+                                               newdata=data.frame(minutes=sort(weekend_night_avg$minutes))), col="purple", lwd=2)
 
 legend("topright", 
-       legend=c("Weekday Data", "Weekend Data", "Weekday Linear", "Weekday Polynomial", 
-                "Weekend Linear", "Weekend Polynomial"),
-       col=c("blue", "red", "blue", "blue", "red", "red"),
-       pch=c(".", ".", NA, NA, NA, NA),
-       lty=c(NA, NA, 1, 2, 1, 2),
-       lwd=c(NA, NA, 2, 2, 2, 2))
+       legend=c("Weekday Day", "Weekday Night", "Weekend Day", "Weekend Night"),
+       col=c("blue", "red", "green", "purple"),
+       lwd=2)
 
-# Print model summaries
-print("Weekday Day Linear Model Summary:")
-summary(weekday_day_fits$linear)
-print("Weekday Day Polynomial Model Summary:")
-summary(weekday_day_fits$poly)
-print("Weekend Day Linear Model Summary:")
-summary(weekend_day_fits$linear)
-print("Weekend Day Polynomial Model Summary:")
-summary(weekend_day_fits$poly)
+dev.off()
