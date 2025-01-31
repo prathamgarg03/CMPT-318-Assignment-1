@@ -18,3 +18,4 @@ numeric_cols <- sapply(week4_data, is.numeric)
 correlation_data <- week4_data[, numeric_cols]
 
 correlation_matrix <- cor(correlation_data, method = "pearson")
+write.csv(correlation_matrix, "correlation_matrix.csv", row.names = FALSE)
