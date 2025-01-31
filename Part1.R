@@ -50,7 +50,8 @@ head(df_interpolated)
 
 head(groupData)
 
-z_scores <- as.data.frame(lapply(df_interpolated, calculate_z_score))
+# z_scores <- as.data.frame(lapply(df_interpolated, calculate_z_score))
+z_scores <- as.data.frame(scale(df_interpolated[, sapply(df_interpolated, is.numeric)], center = TRUE, scale = TRUE))
 
 head(z_scores)
 head(groupData)
